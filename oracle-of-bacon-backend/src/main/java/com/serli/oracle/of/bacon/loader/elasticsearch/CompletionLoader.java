@@ -1,7 +1,10 @@
 package com.serli.oracle.of.bacon.loader.elasticsearch;
 
 import com.serli.oracle.of.bacon.repository.ElasticSearchRepository;
+
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -20,6 +23,18 @@ public class CompletionLoader {
             System.err.println("Usage : completion-loader <actors file path>");
             System.exit(-1);
         }
+        
+        PutMappingRequest request = new PutMappingRequest("actor");
+        request.source(
+        	    "{\n" +
+        	    "  \"properties\": {\n" +
+        	    "    \"suggest\": {\n" +
+        	    "      \"type\": \"completion\"\n" +
+        	    "    },\n" +
+        	    "    \"name\": \"text\"\n" +
+        	    "  }\n" +
+        	    "}", 
+        	    XContentType.JSON);
 
         String inputFilePath = args[0];
         try (BufferedReader bufferedReader = Files.newBufferedReader(Paths.get(inputFilePath))) {
