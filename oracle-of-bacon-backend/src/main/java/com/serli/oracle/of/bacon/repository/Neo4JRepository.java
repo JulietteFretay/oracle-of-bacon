@@ -5,22 +5,70 @@ import org.neo4j.driver.v1.AuthTokens;
 import org.neo4j.driver.v1.Driver;
 import org.neo4j.driver.v1.GraphDatabase;
 import org.neo4j.driver.v1.Session;
+import org.neo4j.driver.v1.StatementResult;
+import org.neo4j.driver.v1.Transaction;
+import org.neo4j.driver.v1.Value;
+import org.neo4j.driver.v1.types.Node;
+import org.neo4j.driver.v1.types.Path;
+import org.neo4j.driver.v1.types.Relationship;
 
+import static org.neo4j.driver.v1.Values.parameters;
+
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Neo4JRepository {
     private final Driver driver;
 
     public Neo4JRepository() {
-        this.driver = GraphDatabase.driver("bolt://localhost:7687", AuthTokens.basic("neo4j", "password"));
+        this.driver = GraphDatabase.driver("bolt://localhost:7687", AuthTokens.basic("neo4j", "pass2606"));
     }
 
-    public List<?> getConnectionsToKevinBacon(String actorName) {
+    public List<GraphItem> getConnectionsToKevinBacon(String actorName) {
         Session session = driver.session();
-
-        // TODO implement Oracle of Bacon
-        return null;
+        Transaction transaction =session.beginTransaction(); 
+        StatementResult result = transaction.run(
+        			"MATCH (Bacon:Actor { name: 'Bacon, Kevin (I)'}), ( Actor: Actor {name: '" + actorName + "'}), "
+        			+ "result = shortestPath((Bacon)-[:PLAYED_IN*]-(Actor)) "
+        			+ "RETURN result"
+        		);
+        List<GraphItem> returnValue = result.list().stream()
+			.flatMap(record -> record.values().stream().map(Value::asPath))
+			.flatMap(path -> getGraphItems(path).stream())
+			.collect(Collectors.toList());
+        System.out.println(returnValue);
+        session.close();
+        return returnValue;
     }
+    
+    public List<GraphItem> getGraphItems(Path path) {
+    	List<GraphItem> graphItems = new ArrayList<GraphItem>();
+    	getGraphNodes(path.nodes(), graphItems);
+    	getGraphRelationships(path.relationships(), graphItems);
+    	return graphItems;
+    }
+    
+    private void getGraphRelationships(Iterable<Relationship> relationships, List<GraphItem> graphItems) {
+    	Iterator<Relationship> iterator = relationships.iterator();
+        while(iterator.hasNext()) {
+            Relationship relationship = iterator.next();
+            GraphEdge edge = new GraphEdge(relationship.id(), relationship.startNodeId(), relationship.endNodeId(), relationship.type());
+            graphItems.add(edge);
+        }
+	}
+
+	private void getGraphNodes(Iterable<Node> nodes, List<GraphItem> graphItems) {
+		Iterator<Node> iterator = nodes.iterator();
+        while(iterator.hasNext()) {
+            Node currentNode = iterator.next();
+            String type = currentNode.labels().iterator().next();
+            String value = type.equals("Actor") ? "name" : "title";
+            GraphNode node = new GraphNode(currentNode.id(), currentNode.get(value).asString(), type);
+            graphItems.add(node);
+        }		
+	}
 
     public static abstract class GraphItem {
         public final long id;
